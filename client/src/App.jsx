@@ -1,77 +1,92 @@
-import { useState } from 'react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import React, { useState } from "react";
 
-function App() {
-  const [prompt, setPrompt] = useState('');
-  const [response, setResponse] = useState(null);
+export default function App() {
+  const [prompt, setPrompt] = useState("");
+  const [result, setResult] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async () => {
+  const generateUI = async () => {
+    setLoading(true);
+    setResult("");
+    setCopied(false);
+
     try {
       const res = await fetch("http://localhost:3000/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ prompt }),
       });
 
       const data = await res.json();
-      setResponse(data.reply);
-    } catch (err) {
-      console.error("Frontend Fetch Error:", err.message);
-      setResponse("❌ Could not fetch response from server.");
+      const codeOnly = extractCode(data.result); // Remove ```html blocks
+      setResult(codeOnly);
+    } catch (error) {
+      setResult("Something went wrong!");
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const extractCode = (text) => {
+    const match = text.match(/```(?:html)?\n?([\s\S]*?)```/);
+    return match ? match[1].trim() : text;
   };
 
   const copyToClipboard = async () => {
     try {
-      await navigator.clipboard.writeText(response);
-      alert("Copied to clipboard!");
-    } catch (err) {
-      alert("Failed to copy!");
+      await navigator.clipboard.writeText(result);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      alert("Copy failed.");
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center p-8">
-      <h1 className="text-3xl font-bold text-indigo-700 mb-8">🎨 AI Design Assistant</h1>
+      <h1 className="text-2xl font-bold mb-4 text-center">
+        🧠 AI Suggestions:
+      </h1>
 
-      <div className="w-full max-w-xl bg-white p-6 rounded-xl shadow-lg">
-        <label className="block mb-2 text-lg font-medium text-gray-700">
-          Describe your UI idea:
-        </label>
-        <input
-          type="text"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="e.g., A login page for mobile banking"
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-        />
-        <button
-          onClick={handleSubmit}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2 rounded-lg w-full"
-        >
-          Generate UI Suggestion
-        </button>
-      </div>
+      <input
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+        placeholder="Describe the UI you want..."
+        className="p-3 rounded border border-gray-300 w-full max-w-xl mb-4"
+      />
+      <button
+        onClick={generateUI}
+        disabled={loading}
+        className="bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700 disabled:opacity-50"
+      >
+        {loading ? "Generating..." : "Generate"}
+      </button>
 
-      {response && (
-        <div className="w-full max-w-xl mt-8 bg-white p-6 rounded-xl shadow-lg">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">🧠 AI Suggestion:</h2>
-          <div className="relative">
+      {result && (
+        <div className="mt-8 w-full max-w-4xl">
+          <p className="mb-2 text-lg text-gray-700">
+            Below is a Tailwind CSS snippet generated from your prompt. You can
+            copy just the code using the button.
+          </p>
+
+          <div className="relative bg-gray-900 text-gray-100 rounded-lg p-6 font-mono whitespace-pre overflow-x-auto shadow-lg">
             <button
               onClick={copyToClipboard}
-              className="absolute top-2 right-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded"
+              className={`absolute top-3 right-4 px-3 py-1 rounded text-sm font-medium transition ${
+                copied
+                  ? "bg-green-600 text-white"
+                  : "bg-indigo-500 hover:bg-indigo-600 text-white"
+              }`}
             >
-              Copy
+              {copied ? "Copied!" : "Copy"}
             </button>
-            <SyntaxHighlighter language="javascript" style={oneDark}>
-              {response}
-            </SyntaxHighlighter>
+            <code>{result}</code>
           </div>
         </div>
       )}
     </div>
   );
 }
-
-export default App;
